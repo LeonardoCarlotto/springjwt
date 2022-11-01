@@ -17,6 +17,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.carlotto.springjwt.repository.TokenRepository;
 import com.carlotto.springjwt.security.services.UserDetailsServiceImpl;
 
 public class AuthTokenFilter extends OncePerRequestFilter {
@@ -25,14 +26,26 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
   @Autowired
   private UserDetailsServiceImpl userDetailsService;
+  
+  @Autowired
+  private TokenRepository tokenRepository;
 
   private static final Logger logger = LoggerFactory.getLogger(AuthTokenFilter.class);
 
+  public String getToken(HttpServletRequest request) {
+	  return parseJwt(request);
+  }
+  
   @Override
   protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
     try {
       String jwt = parseJwt(request);
+      // Repository of invalid token
+      if(tokenRepository.existsByToken(jwt)) {
+    	  logger.error("Token inválido");
+    	  jwt = null;
+      }
       if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
         String username = jwtUtils.getUserNameFromJwtToken(jwt);
 

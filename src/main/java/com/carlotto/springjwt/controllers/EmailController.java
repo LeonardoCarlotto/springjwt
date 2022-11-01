@@ -10,7 +10,7 @@ public class EmailController {
 	@Autowired
 	private JavaMailSender mailSender;
 
-	public String sendMail(String Subject, String mensagem, String email) {
+	public Boolean sendMail(String Subject, String mensagem, String email) {
 		SimpleMailMessage message = new SimpleMailMessage();
 		message.setSubject(Subject);
 		message.setText(mensagem);
@@ -19,10 +19,10 @@ public class EmailController {
 
 		try {
 			mailSender.send(message);
-			return "Email enviado com sucesso!";
+			return true;
 		} catch (Exception e) {
 			e.printStackTrace();
-			return "Erro ao enviar email.";
+			return false;
 		}
 	}
 }

@@ -32,7 +32,7 @@ public class ProfileController {
 
 	@Autowired
 	PasswordEncoder encoder;
-
+	
 	@GetMapping("/all")
 	public String allAccess() {
 		return "Public Content.";
@@ -71,4 +71,5 @@ public class ProfileController {
 			return ResponseEntity.ok("Senhas não conferem");
 		}
 	}
+	
 }
