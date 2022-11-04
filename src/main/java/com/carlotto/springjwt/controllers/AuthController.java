@@ -31,6 +31,7 @@ import com.carlotto.springjwt.models.Role;
 import com.carlotto.springjwt.models.User;
 import com.carlotto.springjwt.payload.request.ForgotPassword;
 import com.carlotto.springjwt.payload.request.LoginRequest;
+import com.carlotto.springjwt.payload.request.ResetPassRequest;
 import com.carlotto.springjwt.payload.request.SignupRequest;
 import com.carlotto.springjwt.payload.response.JwtResponse;
 import com.carlotto.springjwt.payload.response.MessageResponse;
@@ -110,6 +111,7 @@ public class AuthController {
 					new UsernamePasswordAuthenticationToken(user.getUsername(), psw));
 			SecurityContextHolder.getContext().setAuthentication(authentication);
 			jwt = jwtUtils.generateJwtTokenForgotPassword(authentication);
+			fireToken(user, jwt);
 		}
 		String link = "localhost:8081/api/auth/forgotPasswordPage/";
 		String msg = "Olá, esse é o link  para redefinir sua senha!" + System.lineSeparator() + link + jwt;
@@ -126,6 +128,21 @@ public class AuthController {
 			return ResponseEntity.ok(new forgotPasswordResponse(token));
 		}
 		return ResponseEntity.ok("Não foi possivel retornar o token");
+	}
+	
+	@PostMapping("/forgotPasswordPage/{token}")
+	public ResponseEntity<?>  forgotPasswordPage(@Valid @RequestBody ResetPassRequest resetPassRequest, @PathVariable String token) {
+		if(token != null) {
+			if (resetPassRequest.getPassword().equals(resetPassRequest.getConfirmPassword())) {
+				String username = jwtUtils.getUserNameFromJwtToken(token);
+				Optional<User> userOpt = userRepository.findByUsername(username);
+				User user = userOpt.get();
+				user.setPassword(encoder.encode(resetPassRequest.getPassword()));
+				userRepository.save(user);
+				return ResponseEntity.ok("Senha redefinida com sucesso");
+			}
+		}
+		return ResponseEntity.ok("Não foi possivel redefinir a senha");
 	}
 	
 	@PostMapping("/signup")
@@ -152,13 +169,13 @@ public class AuthController {
 		} else {
 			strRoles.forEach(role -> {
 				switch (role) {
-				case "admin":
+				case "ROLE_ADMIN":
 					Role adminRole = roleRepository.findByName(ERole.ROLE_ADMIN)
 							.orElseThrow(() -> new RuntimeException("Error: Role is not found."));
 					roles.add(adminRole);
 
 					break;
-				case "mod":
+				case "ROLE_MODERATOR":
 					Role modRole = roleRepository.findByName(ERole.ROLE_MODERATOR)
 							.orElseThrow(() -> new RuntimeException("Error: Role is not found."));
 					roles.add(modRole);
@@ -183,17 +200,24 @@ public class AuthController {
 	@GetMapping("/logout")
 	public ResponseEntity<?> logout(HttpServletRequest request) {
 		String token = authTokenFilter.getToken(request);
-		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-		UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-		InvalidToken invalidToken = null;
-		if(tokenRepository.existsByEmail(userDetails.getEmail())) {
-			Optional<InvalidToken> repoToken = tokenRepository.findByEmail(userDetails.getEmail());
-			invalidToken = repoToken.get();
-			invalidToken.setToken(token);
-		}else {
-			invalidToken = new InvalidToken(userDetails.getEmail(), token);
+		String username = jwtUtils.getUserNameFromJwtToken(token);
+		Optional<User> userOpt = userRepository.findByUsername(username);
+		User user = userOpt.get();
+		if(fireToken(user, token)) {
+			return ResponseEntity.ok("Logout!");
 		}
-		tokenRepository.save(invalidToken);
-		return ResponseEntity.ok("Logout!");
+		return ResponseEntity.ok("Estamos com problemas!");
+	}
+	
+	private boolean fireToken(User user, String token) {
+		try {
+			InvalidToken invalidToken = null;
+			invalidToken = new InvalidToken(user.getEmail(), token);
+			tokenRepository.save(invalidToken);
+			return true;
+		}catch (Exception e) {
+			System.out.println(e.getMessage());
+			return false;
+		}
 	}
 }

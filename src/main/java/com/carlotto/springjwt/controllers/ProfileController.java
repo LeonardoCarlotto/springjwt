@@ -1,5 +1,6 @@
 package com.carlotto.springjwt.controllers;
 
+import java.util.List;
 import java.util.Optional;
 
 import javax.validation.Valid;
@@ -18,8 +19,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.carlotto.springjwt.models.User;
+import com.carlotto.springjwt.models.Works;
 import com.carlotto.springjwt.payload.request.ResetPassRequest;
+import com.carlotto.springjwt.payload.request.WorkRequest;
+import com.carlotto.springjwt.payload.response.UserResponse;
 import com.carlotto.springjwt.repository.UserRepository;
+import com.carlotto.springjwt.repository.WorkRepository;
 import com.carlotto.springjwt.security.services.UserDetailsImpl;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -29,6 +34,9 @@ public class ProfileController {
 
 	@Autowired
 	UserRepository userRepository;
+	
+	@Autowired
+	WorkRepository workRepository;
 
 	@Autowired
 	PasswordEncoder encoder;
@@ -40,8 +48,9 @@ public class ProfileController {
 
 	@GetMapping("/user")
 	@PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
-	public String userAccess() {
-		return "User Content.";
+	public ResponseEntity<?> userAccess() {
+		User user = getUser();
+		return ResponseEntity.ok(new UserResponse(user));		
 	}
 
 	@GetMapping("/mod")
@@ -60,16 +69,43 @@ public class ProfileController {
 	@PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
 	public ResponseEntity<?> resetPass(@Valid @RequestBody ResetPassRequest resetPassRequest) {
 		if (resetPassRequest.getPassword().equals(resetPassRequest.getConfirmPassword())) {
-			Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-			UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-			Optional<User> userOptional = userRepository.findByEmail(userDetails.getEmail());
-			User user = userOptional.get();
+			User user = getUser();
 			user.setPassword(encoder.encode(resetPassRequest.getPassword()));
 			userRepository.save(user);
 			return ResponseEntity.ok("Reset password for: " + user.getEmail());
 		}else {
 			return ResponseEntity.ok("Senhas não conferem");
 		}
+	}
+	
+	@PostMapping("/createWork")
+	@PreAuthorize("hasRole('ADMIN')")
+	public ResponseEntity<?> createWork(@Valid @RequestBody WorkRequest workRequest) {
+		Works work = new Works();
+		if(userRepository.findByUsername(workRequest.getClientName()) != null ) {
+			work.setClientName(workRequest.getClientName());
+			work.setWorkName(workRequest.getWorkName());
+			work.setStatus(workRequest.getStatus());
+			workRepository.save(work);
+			return ResponseEntity.ok("Work criado com sucesso!");
+		}
+		return ResponseEntity.ok("Cliente não existe");
+	}
+	
+	@GetMapping("/works")
+	@PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")
+	public ResponseEntity<?> createWork() {
+		User user = getUser();
+		List<Works> works = workRepository.findAllByClientName(user.getUsername());
+		return ResponseEntity.ok(works);
+	}
+	
+	private User getUser() {
+		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+		UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+		Optional<User> userOptional = userRepository.findByEmail(userDetails.getEmail());
+		User user = userOptional.get();
+		return user;
 	}
 	
 }
